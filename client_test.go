@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // код писать тут
@@ -39,8 +40,8 @@ func TestTimeout(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
 	defer ts.Close()
 	checkErrorValue(t,
-		"timeout for limit=2&offset=0&order_by=0&order_field=&query=",
-		SearchClient{AccessToken: "12346", URL: "http://127.0.0.1:1"},
+		"timeout for",
+		SearchClient{AccessToken: "Timeout", URL: ts.URL},
 		SearchRequest{Limit: 1, Offset: 0, Query: "", OrderField: "", OrderBy: 0},
 	)
 }
@@ -49,7 +50,7 @@ func TestUnknownError(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(SearchServer))
 	defer ts.Close()
 	checkErrorValue(t,
-		"unknown error Get notaserver?limit=2&offset=0&order_by=0&order_field=&query=: unsupported protocol scheme \"\"",
+		"unknown error",
 		SearchClient{AccessToken: "12346", URL: "notaserver"},
 		SearchRequest{Limit: 1, Offset: 0, Query: "", OrderField: "", OrderBy: 0},
 	)
@@ -93,7 +94,7 @@ func TestUnknownBadRequestError(t *testing.T) {
 	defer ts.Close()
 	checkErrorValue(
 		t,
-		"unknown bad request error: Other error",
+		"unknown bad request error",
 		SearchClient{AccessToken: "unknownBRError", URL: ts.URL},
 		SearchRequest{Limit: 1, Offset: 0, Query: "", OrderField: "", OrderBy: 0},
 	)
@@ -104,7 +105,7 @@ func TestCantUnpack(t *testing.T) {
 	defer ts.Close()
 	checkErrorValue(
 		t,
-		"cant unpack result json: invalid character ']' looking for beginning of value",
+		"cant unpack result json",
 		SearchClient{AccessToken: "CantUnpack", URL: ts.URL},
 		SearchRequest{Limit: 1, Offset: 0, Query: "", OrderField: "", OrderBy: 0},
 	)
@@ -115,7 +116,7 @@ func TestCantUnpackError(t *testing.T) {
 	defer ts.Close()
 	checkErrorValue(
 		t,
-		"cant unpack error json: invalid character ']' looking for beginning of value",
+		"cant unpack error json",
 		SearchClient{AccessToken: "CantUnpackError", URL: ts.URL},
 		SearchRequest{Limit: 1, Offset: 0, Query: "", OrderField: "", OrderBy: 0},
 	)
@@ -165,10 +166,11 @@ func checkErrorValue(t *testing.T, errValue string, searchClient SearchClient, s
 	_, err := searchClient.FindUsers(searchRequest)
 
 	if err == nil {
-		t.Errorf("Expect error \"%v\", got nil.", errValue)
+		t.Errorf("Expect error \"%v...\", got nil.", errValue)
 	}
-	if err.Error() != errValue {
-		t.Errorf("Expect error \"%v\", got %v.", errValue, err.Error())
+
+	if ok := strings.HasPrefix(err.Error(), errValue); !ok {
+		t.Errorf("Expect error \"%v...\", got %v.", errValue, err.Error())
 	}
 }
 
@@ -197,6 +199,9 @@ func SearchServer(w http.ResponseWriter, r *http.Request) {
 		return
 	case "FatalError":
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	case "Timeout":
+		time.Sleep(2 * time.Second)
 		return
 	}
 
